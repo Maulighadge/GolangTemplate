@@ -1,8 +1,6 @@
 package controllers
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/Maulighadge/GolangTemplate/internal/dto"
 	"github.com/Maulighadge/GolangTemplate/internal/services"
@@ -23,7 +21,7 @@ func NewAuthController(authService services.AuthService) *AuthController {
 func (ctl *AuthController) Register(c *gin.Context) {
 	var req dto.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request payload", err.Error())
+		response.ValidationError(c, err)
 		return
 	}
 
@@ -33,7 +31,7 @@ func (ctl *AuthController) Register(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusCreated, "User registered successfully", result)
+	response.Created(c, "User registered successfully", result)
 }
 
 // Login godoc
@@ -42,7 +40,7 @@ func (ctl *AuthController) Register(c *gin.Context) {
 func (ctl *AuthController) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request payload", err.Error())
+		response.ValidationError(c, err)
 		return
 	}
 
@@ -52,5 +50,5 @@ func (ctl *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Login successful", result)
+	response.OK(c, "Login successful", result)
 }

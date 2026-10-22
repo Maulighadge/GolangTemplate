@@ -2,7 +2,6 @@ package middlewares
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/Maulighadge/GolangTemplate/pkg/logger"
@@ -16,7 +15,7 @@ func RecoveryMiddleware() gin.HandlerFunc {
 			if r := recover(); r != nil {
 				errStr := fmt.Sprintf("%v", r)
 				logger.Error("Panic recovered: %s", errStr)
-				response.Error(c, http.StatusInternalServerError, "Internal Server Error", "An unexpected error occurred")
+				response.InternalServerError(c, "An unexpected internal server error occurred", "Internal server error")
 				c.Abort()
 			}
 		}()

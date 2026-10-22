@@ -192,6 +192,7 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
 **Response:**
 ```json
 {
+  "status_code": 201,
   "success": true,
   "message": "User registered successfully",
   "data": {
@@ -205,6 +206,9 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
       "created_at": "2026-10-21T18:00:00Z",
       "updated_at": "2026-10-21T18:00:00Z"
     }
+  },
+  "meta": {
+    "timestamp": "2026-10-21T18:00:00.123Z"
   }
 }
 ```
@@ -232,6 +236,7 @@ curl -X GET "http://localhost:8080/api/v1/products?page=1&limit=10&search=Keyboa
 **Response with Pagination Metadata:**
 ```json
 {
+  "status_code": 200,
   "success": true,
   "message": "Products retrieved successfully",
   "data": [
@@ -249,10 +254,41 @@ curl -X GET "http://localhost:8080/api/v1/products?page=1&limit=10&search=Keyboa
     }
   ],
   "meta": {
-    "page": 1,
-    "limit": 10,
-    "total_rows": 1,
-    "total_pages": 1
+    "timestamp": "2026-10-21T18:05:00.456Z",
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "total_rows": 1,
+      "total_pages": 1
+    }
+  }
+}
+```
+
+### 4. Validation Error Example (422 Unprocessable Entity)
+When sending invalid or missing fields (e.g. invalid email or password too short):
+```json
+{
+  "status_code": 422,
+  "success": false,
+  "message": "Validation failed",
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "details": [
+      {
+        "field": "Email",
+        "tag": "email",
+        "message": "Email must be a valid email address"
+      },
+      {
+        "field": "Password",
+        "tag": "min",
+        "message": "Password must be at least 6 characters long"
+      }
+    ]
+  },
+  "meta": {
+    "timestamp": "2026-10-21T18:06:00.789Z"
   }
 }
 ```

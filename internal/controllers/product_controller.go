@@ -1,8 +1,6 @@
 package controllers
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/Maulighadge/GolangTemplate/internal/dto"
@@ -30,7 +28,7 @@ func (ctl *ProductController) Create(c *gin.Context) {
 
 	var req dto.CreateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request payload", err.Error())
+		response.ValidationError(c, err)
 		return
 	}
 
@@ -40,7 +38,7 @@ func (ctl *ProductController) Create(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusCreated, "Product created successfully", product)
+	response.Created(c, "Product created successfully", product)
 }
 
 // GetByID retrieves a product by its UUID
@@ -58,7 +56,7 @@ func (ctl *ProductController) GetByID(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Product retrieved successfully", product)
+	response.OK(c, "Product retrieved successfully", product)
 }
 
 // List retrieves paginated products with optional search and category filters
@@ -73,7 +71,7 @@ func (ctl *ProductController) List(c *gin.Context) {
 		return
 	}
 
-	response.SuccessWithMeta(c, http.StatusOK, "Products retrieved successfully", products, meta)
+	response.Paginated(c, "Products retrieved successfully", products, meta)
 }
 
 // Update updates an existing product
@@ -90,7 +88,7 @@ func (ctl *ProductController) Update(c *gin.Context) {
 
 	var req dto.UpdateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request payload", err.Error())
+		response.ValidationError(c, err)
 		return
 	}
 
@@ -100,7 +98,7 @@ func (ctl *ProductController) Update(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Product updated successfully", product)
+	response.OK(c, "Product updated successfully", product)
 }
 
 // Delete removes a product
@@ -120,5 +118,5 @@ func (ctl *ProductController) Delete(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Product deleted successfully", nil)
+	response.OK(c, "Product deleted successfully", nil)
 }

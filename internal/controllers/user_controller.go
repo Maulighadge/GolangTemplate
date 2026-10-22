@@ -1,8 +1,6 @@
 package controllers
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/Maulighadge/GolangTemplate/internal/dto"
 	"github.com/Maulighadge/GolangTemplate/internal/middlewares"
@@ -32,7 +30,7 @@ func (ctl *UserController) GetProfile(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "User profile retrieved", profile)
+	response.OK(c, "User profile retrieved", profile)
 }
 
 // UpdateProfile updates user profile information
@@ -45,7 +43,7 @@ func (ctl *UserController) UpdateProfile(c *gin.Context) {
 
 	var req dto.UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request payload", err.Error())
+		response.ValidationError(c, err)
 		return
 	}
 
@@ -55,7 +53,7 @@ func (ctl *UserController) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "User profile updated", updated)
+	response.OK(c, "User profile updated", updated)
 }
 
 // ChangePassword changes user password
@@ -68,7 +66,7 @@ func (ctl *UserController) ChangePassword(c *gin.Context) {
 
 	var req dto.ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request payload", err.Error())
+		response.ValidationError(c, err)
 		return
 	}
 
@@ -77,5 +75,5 @@ func (ctl *UserController) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Password changed successfully", nil)
+	response.OK(c, "Password changed successfully", nil)
 }

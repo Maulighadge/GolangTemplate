@@ -1,9 +1,6 @@
 package controllers
 
 import (
-	"net/http"
-	"time"
-
 	"github.com/gin-gonic/gin"
 	"github.com/Maulighadge/GolangTemplate/config"
 	"github.com/Maulighadge/GolangTemplate/pkg/database"
@@ -24,11 +21,10 @@ func (h *HealthController) Check(c *gin.Context) {
 		dbStatus = "down"
 	}
 
-	response.Success(c, http.StatusOK, "Service is healthy", gin.H{
-		"app":       config.AppConfig.AppName,
-		"env":       config.AppConfig.AppEnv,
-		"status":    "healthy",
-		"timestamp": time.Now().UTC(),
-		"database":  dbStatus,
+	response.OK(c, "Service is healthy", gin.H{
+		"app":      config.AppConfig.AppName,
+		"env":      config.AppConfig.AppEnv,
+		"status":   "healthy",
+		"database": dbStatus,
 	})
 }
