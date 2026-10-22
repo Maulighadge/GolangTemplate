@@ -6,6 +6,7 @@ import (
 	"github.com/Maulighadge/GolangTemplate/internal/middlewares"
 	"github.com/Maulighadge/GolangTemplate/internal/repositories"
 	"github.com/Maulighadge/GolangTemplate/internal/services"
+	"github.com/Maulighadge/GolangTemplate/pkg/response"
 	"gorm.io/gorm"
 )
 
@@ -14,9 +15,18 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	router := gin.New()
 
 	// Global Middlewares
+	router.Use(middlewares.RequestIDMiddleware())
 	router.Use(middlewares.RequestLogger())
 	router.Use(middlewares.RecoveryMiddleware())
 	router.Use(middlewares.CORSMiddleware())
+
+	// Fallback handlers for 404 (Route not found) and 405 (Method not allowed)
+	router.NoRoute(func(c *gin.Context) {
+		response.NotFound(c, "The requested endpoint does not exist")
+	})
+	router.NoMethod(func(c *gin.Context) {
+		response.ErrorWithCode(c, 405, "Method not allowed", "METHOD_NOT_ALLOWED", nil)
+	})
 
 	// Initialize Repositories
 	userRepo := repositories.NewUserRepository(db)

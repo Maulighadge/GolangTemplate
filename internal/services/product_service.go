@@ -1,12 +1,11 @@
 package services
 
 import (
-	"errors"
-
 	"github.com/google/uuid"
 	"github.com/Maulighadge/GolangTemplate/internal/dto"
 	"github.com/Maulighadge/GolangTemplate/internal/models"
 	"github.com/Maulighadge/GolangTemplate/internal/repositories"
+	"github.com/Maulighadge/GolangTemplate/pkg/apperror"
 	"github.com/Maulighadge/GolangTemplate/pkg/utils"
 )
 
@@ -30,10 +29,10 @@ func (s *productService) Create(userID uuid.UUID, req dto.CreateProductRequest) 
 	// Verify unique SKU
 	existing, err := s.productRepo.FindBySKU(req.SKU)
 	if err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to query product by SKU")
 	}
 	if existing != nil {
-		return nil, errors.New("product with this SKU already exists")
+		return nil, apperror.ErrSKUAlreadyExists
 	}
 
 	product := &models.Product{
@@ -47,7 +46,7 @@ func (s *productService) Create(userID uuid.UUID, req dto.CreateProductRequest) 
 	}
 
 	if err := s.productRepo.Create(product); err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to create product")
 	}
 
 	res := dto.ToProductResponse(product)
@@ -57,10 +56,10 @@ func (s *productService) Create(userID uuid.UUID, req dto.CreateProductRequest) 
 func (s *productService) GetByID(id uuid.UUID) (*dto.ProductResponse, error) {
 	product, err := s.productRepo.FindByID(id)
 	if err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to retrieve product")
 	}
 	if product == nil {
-		return nil, errors.New("product not found")
+		return nil, apperror.ErrProductNotFound
 	}
 
 	res := dto.ToProductResponse(product)
@@ -75,7 +74,7 @@ func (s *productService) List(search, category string, page, limit int) ([]dto.P
 
 	products, totalRows, err := s.productRepo.FindAll(search, category, pagination)
 	if err != nil {
-		return nil, pagination, err
+		return nil, pagination, apperror.NewInternal(err, "failed to list products")
 	}
 
 	meta := utils.CalculatePagination(page, limit, totalRows)
@@ -87,15 +86,15 @@ func (s *productService) List(search, category string, page, limit int) ([]dto.P
 func (s *productService) Update(id uuid.UUID, userID uuid.UUID, userRole models.Role, req dto.UpdateProductRequest) (*dto.ProductResponse, error) {
 	product, err := s.productRepo.FindByID(id)
 	if err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to retrieve product for update")
 	}
 	if product == nil {
-		return nil, errors.New("product not found")
+		return nil, apperror.ErrProductNotFound
 	}
 
 	// Authorization check: Only owner or admin can update
 	if userRole != models.RoleAdmin && product.UserID != userID {
-		return nil, errors.New("you do not have permission to update this product")
+		return nil, apperror.ErrForbiddenProduct
 	}
 
 	if req.Name != "" {
@@ -115,7 +114,7 @@ func (s *productService) Update(id uuid.UUID, userID uuid.UUID, userRole models.
 	}
 
 	if err := s.productRepo.Update(product); err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to update product")
 	}
 
 	res := dto.ToProductResponse(product)
@@ -125,16 +124,20 @@ func (s *productService) Update(id uuid.UUID, userID uuid.UUID, userRole models.
 func (s *productService) Delete(id uuid.UUID, userID uuid.UUID, userRole models.Role) error {
 	product, err := s.productRepo.FindByID(id)
 	if err != nil {
-		return err
+		return apperror.NewInternal(err, "failed to retrieve product for deletion")
 	}
 	if product == nil {
-		return errors.New("product not found")
+		return apperror.ErrProductNotFound
 	}
 
 	// Authorization check: Only owner or admin can delete
 	if userRole != models.RoleAdmin && product.UserID != userID {
-		return errors.New("you do not have permission to delete this product")
+		return apperror.ErrForbiddenProduct
 	}
 
-	return s.productRepo.Delete(id)
+	if err := s.productRepo.Delete(id); err != nil {
+		return apperror.NewInternal(err, "failed to delete product")
+	}
+
+	return nil
 }

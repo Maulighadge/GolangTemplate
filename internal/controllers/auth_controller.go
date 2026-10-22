@@ -27,7 +27,7 @@ func (ctl *AuthController) Register(c *gin.Context) {
 
 	result, err := ctl.authService.Register(req)
 	if err != nil {
-		response.BadRequest(c, err.Error(), nil)
+		response.HandleError(c, err)
 		return
 	}
 
@@ -46,7 +46,7 @@ func (ctl *AuthController) Login(c *gin.Context) {
 
 	result, err := ctl.authService.Login(req)
 	if err != nil {
-		response.Unauthorized(c, err.Error())
+		response.HandleError(c, err)
 		return
 	}
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/Maulighadge/GolangTemplate/pkg/apperror"
 )
 
 func init() {
@@ -87,5 +88,100 @@ func TestErrorResponse(t *testing.T) {
 	}
 	if res.Error == nil || res.Error.Code != "Bad Request" {
 		t.Errorf("Expected Error.Code 'Bad Request', got %+v", res.Error)
+	}
+}
+
+func TestHandleError_WithAppErrorNotFound(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	HandleError(c, apperror.ErrProductNotFound)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("Expected status 404, got %d", w.Code)
+	}
+
+	var res Response
+	if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if res.Success {
+		t.Errorf("Expected Success false")
+	}
+	if res.StatusCode != 404 {
+		t.Errorf("Expected StatusCode 404, got %d", res.StatusCode)
+	}
+	if res.Error == nil || res.Error.Code != "PRODUCT_NOT_FOUND" {
+		t.Errorf("Expected Error.Code 'PRODUCT_NOT_FOUND', got %+v", res.Error)
+	}
+	if res.Message != "product not found" {
+		t.Errorf("Expected Message 'product not found', got '%s'", res.Message)
+	}
+}
+
+func TestHandleError_WithAppErrorInternalMasking(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	// Simulate root DB failure wrapped in Internal error
+	rootCause := errors.New("pq: connection refused at 10.0.0.1:5432")
+	internalErr := apperror.NewInternal(rootCause, "something internal failed")
+
+	HandleError(c, internalErr)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected status 500, got %d", w.Code)
+	}
+
+	var res Response
+	if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	// Verify that internal DB string is NOT leaked to clients
+	if res.Message == rootCause.Error() || (res.Error != nil && res.Error.Details == rootCause.Error()) {
+		t.Fatalf("Security failure: internal error details leaked to client! %+v", res)
+	}
+	if res.Error.Code != "INTERNAL_SERVER_ERROR" {
+		t.Errorf("Expected Code 'INTERNAL_SERVER_ERROR', got '%s'", res.Error.Code)
+	}
+}
+
+func TestHandleError_WithGenericError(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	genericErr := errors.New("unexpected os filesystem error")
+	HandleError(c, genericErr)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected status 500, got %d", w.Code)
+	}
+
+	var res Response
+	if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if res.StatusCode != 500 {
+		t.Errorf("Expected status 500, got %d", res.StatusCode)
+	}
+}
+
+func TestMeta_WithRequestID(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set("requestID", "req-xyz-12345")
+
+	OK(c, "Success", nil)
+
+	var res Response
+	if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if res.Meta == nil || res.Meta.RequestID != "req-xyz-12345" {
+		t.Errorf("Expected Meta.RequestID to be 'req-xyz-12345', got %+v", res.Meta)
 	}
 }

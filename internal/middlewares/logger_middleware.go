@@ -7,7 +7,7 @@ import (
 	"github.com/Maulighadge/GolangTemplate/pkg/logger"
 )
 
-// RequestLogger logs incoming HTTP requests with timing and status
+// RequestLogger logs incoming HTTP requests with timing, status, and request ID
 func RequestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -20,17 +20,19 @@ func RequestLogger() gin.HandlerFunc {
 		statusCode := c.Writer.Status()
 		clientIP := c.ClientIP()
 		method := c.Request.Method
+		reqID := GetRequestID(c)
 
 		if raw != "" {
 			path = path + "?" + raw
 		}
 
-		logger.Info("%3d | %13v | %15s | %-7s %#v",
+		logger.Info("%3d | %13v | %15s | %-7s %#v | req_id: %s",
 			statusCode,
 			latency,
 			clientIP,
 			method,
 			path,
+			reqID,
 		)
 	}
 }

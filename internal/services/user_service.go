@@ -1,11 +1,10 @@
 package services
 
 import (
-	"errors"
-
 	"github.com/google/uuid"
 	"github.com/Maulighadge/GolangTemplate/internal/dto"
 	"github.com/Maulighadge/GolangTemplate/internal/repositories"
+	"github.com/Maulighadge/GolangTemplate/pkg/apperror"
 	"github.com/Maulighadge/GolangTemplate/pkg/utils"
 )
 
@@ -26,10 +25,10 @@ func NewUserService(userRepo repositories.UserRepository) UserService {
 func (s *userService) GetProfile(userID uuid.UUID) (*dto.UserResponse, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to query user profile")
 	}
 	if user == nil {
-		return nil, errors.New("user not found")
+		return nil, apperror.ErrUserNotFound
 	}
 
 	resp := dto.ToUserResponse(user)
@@ -39,10 +38,10 @@ func (s *userService) GetProfile(userID uuid.UUID) (*dto.UserResponse, error) {
 func (s *userService) UpdateProfile(userID uuid.UUID, req dto.UpdateUserRequest) (*dto.UserResponse, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to query user for update")
 	}
 	if user == nil {
-		return nil, errors.New("user not found")
+		return nil, apperror.ErrUserNotFound
 	}
 
 	if req.Name != "" {
@@ -50,7 +49,7 @@ func (s *userService) UpdateProfile(userID uuid.UUID, req dto.UpdateUserRequest)
 	}
 
 	if err := s.userRepo.Update(user); err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to update user profile")
 	}
 
 	resp := dto.ToUserResponse(user)
@@ -60,21 +59,25 @@ func (s *userService) UpdateProfile(userID uuid.UUID, req dto.UpdateUserRequest)
 func (s *userService) ChangePassword(userID uuid.UUID, req dto.ChangePasswordRequest) error {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return err
+		return apperror.NewInternal(err, "failed to query user for password change")
 	}
 	if user == nil {
-		return errors.New("user not found")
+		return apperror.ErrUserNotFound
 	}
 
 	if !utils.CheckPasswordHash(req.OldPassword, user.Password) {
-		return errors.New("current password is incorrect")
+		return apperror.ErrIncorrectPassword
 	}
 
 	hashedPassword, err := utils.HashPassword(req.NewPassword)
 	if err != nil {
-		return err
+		return apperror.NewInternal(err, "failed to hash new password")
 	}
 
 	user.Password = hashedPassword
-	return s.userRepo.Update(user)
+	if err := s.userRepo.Update(user); err != nil {
+		return apperror.NewInternal(err, "failed to update password")
+	}
+
+	return nil
 }

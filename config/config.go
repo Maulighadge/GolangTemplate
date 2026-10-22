@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"log"
 	"os"
 	"strconv"
@@ -61,6 +62,16 @@ func LoadConfig() *Config {
 	}
 
 	return AppConfig
+}
+
+// Validate validates that critical configuration values are safe and present
+func (c *Config) Validate() error {
+	if c.AppEnv == "production" {
+		if c.JWTSecret == "default-jwt-secret-key-change-me" || len(c.JWTSecret) < 16 {
+			return errors.New("JWT_SECRET must be explicitly set to a secure string of at least 16 characters in production")
+		}
+	}
+	return nil
 }
 
 func getEnv(key, fallback string) string {

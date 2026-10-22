@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/Maulighadge/GolangTemplate/internal/models"
@@ -25,7 +26,10 @@ func NewUserRepository(db *gorm.DB) UserRepository {
 }
 
 func (r *userRepository) Create(user *models.User) error {
-	return r.db.Create(user).Error
+	if err := r.db.Create(user).Error; err != nil {
+		return fmt.Errorf("create user: %w", err)
+	}
+	return nil
 }
 
 func (r *userRepository) FindByID(id uuid.UUID) (*models.User, error) {
@@ -35,7 +39,7 @@ func (r *userRepository) FindByID(id uuid.UUID) (*models.User, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("find user by id %s: %w", id, err)
 	}
 	return &user, nil
 }
@@ -47,15 +51,21 @@ func (r *userRepository) FindByEmail(email string) (*models.User, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("find user by email %s: %w", email, err)
 	}
 	return &user, nil
 }
 
 func (r *userRepository) Update(user *models.User) error {
-	return r.db.Save(user).Error
+	if err := r.db.Save(user).Error; err != nil {
+		return fmt.Errorf("update user %s: %w", user.ID, err)
+	}
+	return nil
 }
 
 func (r *userRepository) Delete(id uuid.UUID) error {
-	return r.db.Delete(&models.User{}, "id = ?", id).Error
+	if err := r.db.Delete(&models.User{}, "id = ?", id).Error; err != nil {
+		return fmt.Errorf("delete user %s: %w", id, err)
+	}
+	return nil
 }

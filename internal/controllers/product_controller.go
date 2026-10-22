@@ -6,6 +6,7 @@ import (
 	"github.com/Maulighadge/GolangTemplate/internal/dto"
 	"github.com/Maulighadge/GolangTemplate/internal/middlewares"
 	"github.com/Maulighadge/GolangTemplate/internal/services"
+	"github.com/Maulighadge/GolangTemplate/pkg/apperror"
 	"github.com/Maulighadge/GolangTemplate/pkg/response"
 	"github.com/Maulighadge/GolangTemplate/pkg/utils"
 )
@@ -22,7 +23,7 @@ func NewProductController(productService services.ProductService) *ProductContro
 func (ctl *ProductController) Create(c *gin.Context) {
 	userID, ok := middlewares.GetAuthUserID(c)
 	if !ok {
-		response.Unauthorized(c, "Unauthorized")
+		response.Unauthorized(c, "Unauthorized access")
 		return
 	}
 
@@ -34,7 +35,7 @@ func (ctl *ProductController) Create(c *gin.Context) {
 
 	product, err := ctl.productService.Create(userID, req)
 	if err != nil {
-		response.BadRequest(c, err.Error(), nil)
+		response.HandleError(c, err)
 		return
 	}
 
@@ -46,13 +47,13 @@ func (ctl *ProductController) GetByID(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		response.BadRequest(c, "Invalid UUID format", err.Error())
+		response.HandleError(c, apperror.ErrInvalidID)
 		return
 	}
 
 	product, err := ctl.productService.GetByID(id)
 	if err != nil {
-		response.NotFound(c, err.Error())
+		response.HandleError(c, err)
 		return
 	}
 
@@ -67,7 +68,7 @@ func (ctl *ProductController) List(c *gin.Context) {
 
 	products, meta, err := ctl.productService.List(search, category, page, limit)
 	if err != nil {
-		response.InternalServerError(c, "Failed to fetch products", err.Error())
+		response.HandleError(c, err)
 		return
 	}
 
@@ -79,11 +80,15 @@ func (ctl *ProductController) Update(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		response.BadRequest(c, "Invalid UUID format", err.Error())
+		response.HandleError(c, apperror.ErrInvalidID)
 		return
 	}
 
-	userID, _ := middlewares.GetAuthUserID(c)
+	userID, ok := middlewares.GetAuthUserID(c)
+	if !ok {
+		response.Unauthorized(c, "Unauthorized access")
+		return
+	}
 	role, _ := middlewares.GetAuthUserRole(c)
 
 	var req dto.UpdateProductRequest
@@ -94,7 +99,7 @@ func (ctl *ProductController) Update(c *gin.Context) {
 
 	product, err := ctl.productService.Update(id, userID, role, req)
 	if err != nil {
-		response.BadRequest(c, err.Error(), nil)
+		response.HandleError(c, err)
 		return
 	}
 
@@ -106,15 +111,19 @@ func (ctl *ProductController) Delete(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		response.BadRequest(c, "Invalid UUID format", err.Error())
+		response.HandleError(c, apperror.ErrInvalidID)
 		return
 	}
 
-	userID, _ := middlewares.GetAuthUserID(c)
+	userID, ok := middlewares.GetAuthUserID(c)
+	if !ok {
+		response.Unauthorized(c, "Unauthorized access")
+		return
+	}
 	role, _ := middlewares.GetAuthUserRole(c)
 
 	if err := ctl.productService.Delete(id, userID, role); err != nil {
-		response.BadRequest(c, err.Error(), nil)
+		response.HandleError(c, err)
 		return
 	}
 

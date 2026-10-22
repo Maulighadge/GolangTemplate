@@ -1,11 +1,10 @@
 package services
 
 import (
-	"errors"
-
 	"github.com/Maulighadge/GolangTemplate/internal/dto"
 	"github.com/Maulighadge/GolangTemplate/internal/models"
 	"github.com/Maulighadge/GolangTemplate/internal/repositories"
+	"github.com/Maulighadge/GolangTemplate/pkg/apperror"
 	"github.com/Maulighadge/GolangTemplate/pkg/utils"
 )
 
@@ -26,16 +25,16 @@ func (s *authService) Register(req dto.RegisterRequest) (*dto.AuthResponse, erro
 	// Check if user already exists
 	existingUser, err := s.userRepo.FindByEmail(req.Email)
 	if err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to check existing user")
 	}
 	if existingUser != nil {
-		return nil, errors.New("user with this email already exists")
+		return nil, apperror.ErrEmailAlreadyExists
 	}
 
 	// Hash password
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to hash password")
 	}
 
 	newUser := &models.User{
@@ -47,12 +46,12 @@ func (s *authService) Register(req dto.RegisterRequest) (*dto.AuthResponse, erro
 	}
 
 	if err := s.userRepo.Create(newUser); err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to create user")
 	}
 
 	token, err := utils.GenerateToken(newUser.ID, newUser.Email, string(newUser.Role))
 	if err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to generate authentication token")
 	}
 
 	return &dto.AuthResponse{
@@ -64,23 +63,23 @@ func (s *authService) Register(req dto.RegisterRequest) (*dto.AuthResponse, erro
 func (s *authService) Login(req dto.LoginRequest) (*dto.AuthResponse, error) {
 	user, err := s.userRepo.FindByEmail(req.Email)
 	if err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to query user")
 	}
 	if user == nil {
-		return nil, errors.New("invalid email or password")
+		return nil, apperror.ErrInvalidCredentials
 	}
 
 	if !user.IsActive {
-		return nil, errors.New("user account is deactivated")
+		return nil, apperror.ErrAccountDeactivated
 	}
 
 	if !utils.CheckPasswordHash(req.Password, user.Password) {
-		return nil, errors.New("invalid email or password")
+		return nil, apperror.ErrInvalidCredentials
 	}
 
 	token, err := utils.GenerateToken(user.ID, user.Email, string(user.Role))
 	if err != nil {
-		return nil, err
+		return nil, apperror.NewInternal(err, "failed to generate authentication token")
 	}
 
 	return &dto.AuthResponse{

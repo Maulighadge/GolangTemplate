@@ -1,6 +1,7 @@
 package response
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -8,6 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/Maulighadge/GolangTemplate/pkg/apperror"
+	"github.com/Maulighadge/GolangTemplate/pkg/logger"
 )
 
 // Response represents the standard API response structure
@@ -20,9 +23,10 @@ type Response struct {
 	Meta       *Meta         `json:"meta,omitempty"`
 }
 
-// Meta contains metadata such as timestamps and pagination details
+// Meta contains metadata such as timestamps, request ID, and pagination details
 type Meta struct {
 	Timestamp  time.Time   `json:"timestamp"`
+	RequestID  string      `json:"request_id,omitempty"`
 	Pagination interface{} `json:"pagination,omitempty"`
 }
 
@@ -39,6 +43,25 @@ type FieldError struct {
 	Message string `json:"message"`
 }
 
+func newMeta(c *gin.Context, pagination interface{}) *Meta {
+	meta := &Meta{
+		Timestamp:  time.Now().UTC(),
+		Pagination: pagination,
+	}
+	if c != nil {
+		if reqID, exists := c.Get("requestID"); exists {
+			if idStr, ok := reqID.(string); ok && idStr != "" {
+				meta.RequestID = idStr
+			}
+		} else if c.Request != nil {
+			if headerID := c.GetHeader("X-Request-ID"); headerID != "" {
+				meta.RequestID = headerID
+			}
+		}
+	}
+	return meta
+}
+
 // Success sends a standardized success JSON response
 func Success(c *gin.Context, statusCode int, message string, data interface{}) {
 	c.JSON(statusCode, Response{
@@ -46,9 +69,7 @@ func Success(c *gin.Context, statusCode int, message string, data interface{}) {
 		Success:    true,
 		Message:    message,
 		Data:       data,
-		Meta: &Meta{
-			Timestamp: time.Now().UTC(),
-		},
+		Meta:       newMeta(c, nil),
 	})
 }
 
@@ -69,10 +90,7 @@ func SuccessWithMeta(c *gin.Context, statusCode int, message string, data interf
 		Success:    true,
 		Message:    message,
 		Data:       data,
-		Meta: &Meta{
-			Timestamp:  time.Now().UTC(),
-			Pagination: pagination,
-		},
+		Meta:       newMeta(c, pagination),
 	})
 }
 
@@ -83,7 +101,16 @@ func Paginated(c *gin.Context, message string, data interface{}, pagination inte
 
 // Error sends a standardized error JSON response
 func Error(c *gin.Context, statusCode int, message string, errDetail interface{}) {
+	ErrorWithCode(c, statusCode, message, http.StatusText(statusCode), errDetail)
+}
+
+// ErrorWithCode sends a standardized error JSON response with an explicit machine-readable error code
+func ErrorWithCode(c *gin.Context, statusCode int, message string, code string, errDetail interface{}) {
 	var payload *ErrorPayload
+
+	if code == "" {
+		code = http.StatusText(statusCode)
+	}
 
 	if errDetail != nil {
 		switch v := errDetail.(type) {
@@ -91,23 +118,32 @@ func Error(c *gin.Context, statusCode int, message string, errDetail interface{}
 			payload = v
 		case ErrorPayload:
 			payload = &v
+		case *apperror.AppError:
+			payload = &ErrorPayload{
+				Code:    v.Code,
+				Details: v.Details,
+			}
 		case error:
 			payload = &ErrorPayload{
-				Code:    http.StatusText(statusCode),
+				Code:    code,
 				Details: v.Error(),
 			}
 		case string:
 			if v != "" {
 				payload = &ErrorPayload{
-					Code:    http.StatusText(statusCode),
+					Code:    code,
 					Details: v,
 				}
 			}
 		default:
 			payload = &ErrorPayload{
-				Code:    http.StatusText(statusCode),
+				Code:    code,
 				Details: v,
 			}
+		}
+	} else if code != "" {
+		payload = &ErrorPayload{
+			Code: code,
 		}
 	}
 
@@ -116,15 +152,54 @@ func Error(c *gin.Context, statusCode int, message string, errDetail interface{}
 		Success:    false,
 		Message:    message,
 		Error:      payload,
-		Meta: &Meta{
-			Timestamp: time.Now().UTC(),
-		},
+		Meta:       newMeta(c, nil),
 	})
+}
+
+// HandleError inspects the error and dispatches the appropriate HTTP response.
+// If err is an *apperror.AppError, it uses its Kind, Code, Message, and Details.
+// For internal errors (status >= 500), it logs root causes with the request ID and
+// returns a safe sanitized message without leaking internal implementation details.
+func HandleError(c *gin.Context, err error) {
+	if err == nil {
+		return
+	}
+
+	var appErr *apperror.AppError
+	if errors.As(err, &appErr) {
+		status := appErr.HTTPStatusCode()
+		if status >= 500 {
+			reqID := ""
+			if id, exists := c.Get("requestID"); exists {
+				reqID = fmt.Sprintf("%v", id)
+			}
+			logger.Error("[ReqID: %s] Internal server error: %v", reqID, appErr)
+			ErrorWithCode(c, status, "An unexpected internal server error occurred", appErr.Code, nil)
+			return
+		}
+
+		ErrorWithCode(c, status, appErr.Message, appErr.Code, appErr.Details)
+		return
+	}
+
+	var ve validator.ValidationErrors
+	if errors.As(err, &ve) {
+		ValidationError(c, err)
+		return
+	}
+
+	// Unhandled error -> 500
+	reqID := ""
+	if id, exists := c.Get("requestID"); exists {
+		reqID = fmt.Sprintf("%v", id)
+	}
+	logger.Error("[ReqID: %s] Unhandled unexpected error: %v", reqID, err)
+	InternalServerError(c, "An unexpected internal server error occurred", nil)
 }
 
 // BadRequest sends a 400 Bad Request error response
 func BadRequest(c *gin.Context, message string, errDetail interface{}) {
-	Error(c, http.StatusBadRequest, message, errDetail)
+	ErrorWithCode(c, http.StatusBadRequest, message, "BAD_REQUEST", errDetail)
 }
 
 // ValidationError formats binding/validation errors into a structured 422 Unprocessable Entity response
@@ -148,15 +223,42 @@ func ValidationError(c *gin.Context, err error) {
 				Code:    "VALIDATION_ERROR",
 				Details: fieldErrors,
 			},
-			Meta: &Meta{
-				Timestamp: time.Now().UTC(),
+			Meta: newMeta(c, nil),
+		})
+		return
+	}
+
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) {
+		c.JSON(http.StatusBadRequest, Response{
+			StatusCode: http.StatusBadRequest,
+			Success:    false,
+			Message:    "Invalid request payload",
+			Error: &ErrorPayload{
+				Code: "INVALID_FIELD_TYPE",
+				Details: []FieldError{
+					{
+						Field:   typeErr.Field,
+						Message: fmt.Sprintf("Expected %s but received %s", typeErr.Type.String(), typeErr.Value),
+					},
+				},
 			},
+			Meta: newMeta(c, nil),
 		})
 		return
 	}
 
 	// General syntax / unmarshal error fallback
-	BadRequest(c, "Invalid request payload", err.Error())
+	c.JSON(http.StatusBadRequest, Response{
+		StatusCode: http.StatusBadRequest,
+		Success:    false,
+		Message:    "Invalid request payload",
+		Error: &ErrorPayload{
+			Code:    "INVALID_PAYLOAD_FORMAT",
+			Details: err.Error(),
+		},
+		Meta: newMeta(c, nil),
+	})
 }
 
 // Unauthorized sends a 401 Unauthorized error response
@@ -164,7 +266,7 @@ func Unauthorized(c *gin.Context, message string) {
 	if message == "" {
 		message = "Unauthorized access"
 	}
-	Error(c, http.StatusUnauthorized, message, nil)
+	ErrorWithCode(c, http.StatusUnauthorized, message, "UNAUTHORIZED", nil)
 }
 
 // Forbidden sends a 403 Forbidden error response
@@ -172,7 +274,7 @@ func Forbidden(c *gin.Context, message string) {
 	if message == "" {
 		message = "Access forbidden"
 	}
-	Error(c, http.StatusForbidden, message, nil)
+	ErrorWithCode(c, http.StatusForbidden, message, "FORBIDDEN", nil)
 }
 
 // NotFound sends a 404 Not Found error response
@@ -180,20 +282,20 @@ func NotFound(c *gin.Context, message string) {
 	if message == "" {
 		message = "Resource not found"
 	}
-	Error(c, http.StatusNotFound, message, nil)
+	ErrorWithCode(c, http.StatusNotFound, message, "NOT_FOUND", nil)
 }
 
 // Conflict sends a 409 Conflict error response
 func Conflict(c *gin.Context, message string, errDetail interface{}) {
-	Error(c, http.StatusConflict, message, errDetail)
+	ErrorWithCode(c, http.StatusConflict, message, "CONFLICT", errDetail)
 }
 
-// InternalServerError sends a 500 Internal Server Error response
+// InternalServerError sends a 500 Internal Server Error response without leaking details to clients
 func InternalServerError(c *gin.Context, message string, errDetail interface{}) {
 	if message == "" {
-		message = "Internal server error"
+		message = "An unexpected internal server error occurred"
 	}
-	Error(c, http.StatusInternalServerError, message, errDetail)
+	ErrorWithCode(c, http.StatusInternalServerError, message, "INTERNAL_SERVER_ERROR", errDetail)
 }
 
 // formatValidationTag returns clear, human-readable validation messages for common validation tags
@@ -211,6 +313,14 @@ func formatValidationTag(fe validator.FieldError) string {
 		return fmt.Sprintf("%s must be greater than or equal to %s", fe.Field(), fe.Param())
 	case "lte":
 		return fmt.Sprintf("%s must be less than or equal to %s", fe.Field(), fe.Param())
+	case "uuid":
+		return fmt.Sprintf("%s must be a valid UUID", fe.Field())
+	case "oneof":
+		return fmt.Sprintf("%s must be one of [%s]", fe.Field(), fe.Param())
+	case "url":
+		return fmt.Sprintf("%s must be a valid URL", fe.Field())
+	case "numeric":
+		return fmt.Sprintf("%s must be numeric", fe.Field())
 	default:
 		return fmt.Sprintf("%s failed on rule '%s'", fe.Field(), fe.Tag())
 	}

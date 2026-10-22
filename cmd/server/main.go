@@ -24,6 +24,10 @@ func main() {
 
 	// 2. Load Configuration
 	cfg := config.LoadConfig()
+	if err := cfg.Validate(); err != nil {
+		logger.Error("Configuration validation error: %v", err)
+		os.Exit(1)
+	}
 	logger.Info("Configuration loaded successfully. Environment: %s", cfg.AppEnv)
 
 	// Set Gin mode

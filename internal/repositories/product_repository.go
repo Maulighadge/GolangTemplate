@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/Maulighadge/GolangTemplate/internal/models"
@@ -27,7 +28,10 @@ func NewProductRepository(db *gorm.DB) ProductRepository {
 }
 
 func (r *productRepository) Create(product *models.Product) error {
-	return r.db.Create(product).Error
+	if err := r.db.Create(product).Error; err != nil {
+		return fmt.Errorf("create product: %w", err)
+	}
+	return nil
 }
 
 func (r *productRepository) FindByID(id uuid.UUID) (*models.Product, error) {
@@ -37,7 +41,7 @@ func (r *productRepository) FindByID(id uuid.UUID) (*models.Product, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("find product by id %s: %w", id, err)
 	}
 	return &product, nil
 }
@@ -49,7 +53,7 @@ func (r *productRepository) FindBySKU(sku string) (*models.Product, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("find product by sku %s: %w", sku, err)
 	}
 	return &product, nil
 }
@@ -69,7 +73,7 @@ func (r *productRepository) FindAll(search, category string, pagination utils.Pa
 	}
 
 	if err := query.Count(&totalRows).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("count products: %w", err)
 	}
 
 	err := query.
@@ -80,16 +84,22 @@ func (r *productRepository) FindAll(search, category string, pagination utils.Pa
 		Find(&products).Error
 
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("find all products: %w", err)
 	}
 
 	return products, totalRows, nil
 }
 
 func (r *productRepository) Update(product *models.Product) error {
-	return r.db.Save(product).Error
+	if err := r.db.Save(product).Error; err != nil {
+		return fmt.Errorf("update product %s: %w", product.ID, err)
+	}
+	return nil
 }
 
 func (r *productRepository) Delete(id uuid.UUID) error {
-	return r.db.Delete(&models.Product{}, "id = ?", id).Error
+	if err := r.db.Delete(&models.Product{}, "id = ?", id).Error; err != nil {
+		return fmt.Errorf("delete product %s: %w", id, err)
+	}
+	return nil
 }

@@ -20,13 +20,13 @@ func NewUserController(userService services.UserService) *UserController {
 func (ctl *UserController) GetProfile(c *gin.Context) {
 	userID, ok := middlewares.GetAuthUserID(c)
 	if !ok {
-		response.Unauthorized(c, "Unauthorized")
+		response.Unauthorized(c, "Unauthorized access")
 		return
 	}
 
 	profile, err := ctl.userService.GetProfile(userID)
 	if err != nil {
-		response.NotFound(c, err.Error())
+		response.HandleError(c, err)
 		return
 	}
 
@@ -37,7 +37,7 @@ func (ctl *UserController) GetProfile(c *gin.Context) {
 func (ctl *UserController) UpdateProfile(c *gin.Context) {
 	userID, ok := middlewares.GetAuthUserID(c)
 	if !ok {
-		response.Unauthorized(c, "Unauthorized")
+		response.Unauthorized(c, "Unauthorized access")
 		return
 	}
 
@@ -49,7 +49,7 @@ func (ctl *UserController) UpdateProfile(c *gin.Context) {
 
 	updated, err := ctl.userService.UpdateProfile(userID, req)
 	if err != nil {
-		response.BadRequest(c, err.Error(), nil)
+		response.HandleError(c, err)
 		return
 	}
 
@@ -60,7 +60,7 @@ func (ctl *UserController) UpdateProfile(c *gin.Context) {
 func (ctl *UserController) ChangePassword(c *gin.Context) {
 	userID, ok := middlewares.GetAuthUserID(c)
 	if !ok {
-		response.Unauthorized(c, "Unauthorized")
+		response.Unauthorized(c, "Unauthorized access")
 		return
 	}
 
@@ -71,7 +71,7 @@ func (ctl *UserController) ChangePassword(c *gin.Context) {
 	}
 
 	if err := ctl.userService.ChangePassword(userID, req); err != nil {
-		response.BadRequest(c, err.Error(), nil)
+		response.HandleError(c, err)
 		return
 	}
 

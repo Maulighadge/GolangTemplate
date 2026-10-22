@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -21,14 +22,14 @@ func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			response.Unauthorized(c, "Authorization header is required")
+			response.ErrorWithCode(c, http.StatusUnauthorized, "Authorization header is required", "MISSING_AUTH_HEADER", nil)
 			c.Abort()
 			return
 		}
 
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			response.Unauthorized(c, "Invalid authorization header format. Expected 'Bearer <token>'")
+			response.ErrorWithCode(c, http.StatusUnauthorized, "Invalid authorization header format. Expected 'Bearer <token>'", "INVALID_AUTH_HEADER", nil)
 			c.Abort()
 			return
 		}
@@ -36,7 +37,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		tokenString := parts[1]
 		claims, err := utils.ValidateToken(tokenString)
 		if err != nil {
-			response.Unauthorized(c, "Invalid or expired token")
+			response.ErrorWithCode(c, http.StatusUnauthorized, "Invalid or expired token", "INVALID_TOKEN", nil)
 			c.Abort()
 			return
 		}
@@ -55,7 +56,7 @@ func RequireRole(allowedRoles ...models.Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleVal, exists := c.Get(CtxRoleKey)
 		if !exists {
-			response.Unauthorized(c, "Unauthorized access")
+			response.ErrorWithCode(c, http.StatusUnauthorized, "Unauthorized access", "UNAUTHORIZED", nil)
 			c.Abort()
 			return
 		}
@@ -68,7 +69,7 @@ func RequireRole(allowedRoles ...models.Role) gin.HandlerFunc {
 			}
 		}
 
-		response.Forbidden(c, "You do not have permission to perform this action")
+		response.ErrorWithCode(c, http.StatusForbidden, "You do not have permission to perform this action", "FORBIDDEN", nil)
 		c.Abort()
 	}
 }
